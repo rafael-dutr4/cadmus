@@ -1,0 +1,12 @@
+.DS_Store
+/.build
+/Packages
+/Kadmos.app
+xcuserdata/
+DerivedData/
+.swiftpm/
+.netrc
+
+# The models are hundreds of megabytes and they are downloadable. `make model`
+# fetches the one the program expects.
+/models
