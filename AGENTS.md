@@ -21,7 +21,8 @@ that types a guess and fixes it later.
 ```text
 Sources/Cadmus/main.swift        menu bar, hotkey, the cycle
 Sources/Cadmus/Recorder.swift    microphone to 16 kHz mono float, cut at pauses
-Sources/Cadmus/Playback.swift    pausing the music while the microphone is open
+Sources/Cadmus/Playback.swift    silencing the machine while the microphone is open
+Sources/Cadmus/InputDevice.swift making the built in microphone the default
 Sources/Cadmus/Transcriber.swift whisper.cpp
 Sources/Cadmus/Typist.swift      putting text into the focused application
 Sources/Cadmus/Hotkey.swift      the system wide hotkey
@@ -58,3 +59,4 @@ granting both again.
 - `CADMUS_INSERT`: `keystrokes` (default) or `paste`.
 - `CADMUS_MODEL`: path to a different ggml model.
 - `CADMUS_VOICE_FLOOR`: the loudness under which audio is not speech.
+- `CADMUS_QUIET`: `0` to leave the machine's sound alone while recording.

@@ -62,6 +62,11 @@ enum Playback {
   // MARK: - The output device
 
   private static func mute() {
+    // Muting twice without restoring in between would record "it was already
+    // muted" as the state to go back to, and the machine would stay silent
+    // forever. The saved state is written once and cleared only by restoring.
+    guard previousMute == nil, previousVolume == nil else { return }
+
     let device = defaultOutput()
 
     // Master mute is the clean way and most devices have it. The ones that do

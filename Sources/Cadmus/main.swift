@@ -39,6 +39,8 @@ final class Cadmus: NSObject, NSApplicationDelegate {
       ?? .keystrokes
   }()
 
+  private let quiet = ProcessInfo.processInfo.environment["CADMUS_QUIET"] != "0"
+
   private var modelPath: String {
     if let override = ProcessInfo.processInfo.environment["CADMUS_MODEL"] { return override }
     return FileManager.default.homeDirectoryForCurrentUser
@@ -79,10 +81,13 @@ final class Cadmus: NSObject, NSApplicationDelegate {
 
     // A Cadmus that dies holding the mute leaves the machine silent with no
     // sign of why, which is a worse bug than the one muting solves. Quitting
-    // goes through the delegate, and being killed goes through these.
-    for killed in [SIGTERM, SIGINT, SIGHUP] {
+    // goes through the delegate, and every way of dying that can still run code
+    // goes through these. The crash signals are on the list because a crash is
+    // exactly when nobody is left to clean up.
+    for killed in [SIGTERM, SIGINT, SIGHUP, SIGSEGV, SIGABRT, SIGILL, SIGBUS, SIGFPE] {
       signal(killed) { _ in
         Playback.restore()
+        InputDevice.restore()
         exit(1)
       }
     }
@@ -100,6 +105,7 @@ final class Cadmus: NSObject, NSApplicationDelegate {
 
   func applicationWillTerminate(_ notification: Notification) {
     Playback.restore()
+    InputDevice.restore()
   }
 
   private func toggle() {
@@ -107,11 +113,12 @@ final class Cadmus: NSObject, NSApplicationDelegate {
   }
 
   private func begin() {
-    // Before the microphone, not after. Opening the microphone is what drags a
-    // Bluetooth headset into the profile that makes everything else sound
-    // broken, so the machine goes quiet first and stays quiet until I stop.
+    // The machine goes quiet while I dictate. This is no longer needed to
+    // protect the audio, now that the headset microphone is never opened: it is
+    // here so that nothing playing gets recorded along with me, and because I
+    // would rather not be talked at while talking. CADMUS_QUIET=0 turns it off.
     micLive = false
-    Playback.silence()
+    if quiet { Playback.silence() }
     do {
       try recorder.start()
       redraw()

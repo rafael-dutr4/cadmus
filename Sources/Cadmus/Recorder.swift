@@ -27,7 +27,10 @@ final class Recorder: @unchecked Sendable {
   var onReady: (() -> Void)?
   private var ready = false
 
-  private let engine = AVAudioEngine()
+  /// A new engine for every take, and none between them. Holding one open keeps
+  /// the input device open with it, and a device nobody is using is a device
+  /// that is free to go back to whatever profile it prefers.
+  private var engine: AVAudioEngine?
   private var converter: AVAudioConverter?
   private var current: [Float] = []
   private var voiced: Double = 0
@@ -74,9 +77,20 @@ final class Recorder: @unchecked Sendable {
     guard !isRecording else { return }
     reset()
 
+    // Before the engine exists, because the engine reads the device once and
+    // keeps it. Changing it afterwards leaves the node running at the old rate.
+    InputDevice.useBuiltIn()
+
+    let (engine, inputFormat): (AVAudioEngine, AVAudioFormat)
+    do {
+      (engine, inputFormat) = try openInput()
+    } catch {
+      InputDevice.restore()
+      throw error
+    }
+    self.engine = engine
+
     let input = engine.inputNode
-    let inputFormat = input.inputFormat(forBus: 0)
-    guard inputFormat.sampleRate > 0 else { throw CadmusError.noInputDevice }
     converter = AVAudioConverter(from: inputFormat, to: targetFormat)
 
     input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
@@ -84,17 +98,47 @@ final class Recorder: @unchecked Sendable {
     }
 
     engine.prepare()
-    try engine.start()
+    do {
+      try engine.start()
+    } catch {
+      self.engine = nil
+      InputDevice.restore()
+      throw error
+    }
     isRecording = true
   }
 
-  /// Stops the engine and flushes whatever phrase was still open.
+  /// Stops the engine and flushes whatever phrase was still open. The engine is
+  /// dropped rather than kept, so the microphone is actually released.
   func stop() {
     guard isRecording else { return }
-    engine.inputNode.removeTap(onBus: 0)
-    engine.stop()
+    engine?.inputNode.removeTap(onBus: 0)
+    engine?.stop()
+    engine = nil
+    converter = nil
     isRecording = false
+    InputDevice.restore()
     emitIfWorthIt()
+  }
+
+  /// An engine pointed at a device that is actually ready.
+  ///
+  /// Changing the default input takes effect when it takes effect, not when the
+  /// call returns, and an engine built a moment too early reports a sample rate
+  /// of zero and records nothing. The engine reads the device once, at the
+  /// moment its input node is created, so waiting means building a new one
+  /// rather than asking the same one again.
+  ///
+  /// It almost always succeeds on the first try. The waiting is for the take
+  /// that comes right after the previous one put the device back.
+  private func openInput() throws -> (AVAudioEngine, AVAudioFormat) {
+    for _ in 0..<20 {
+      let engine = AVAudioEngine()
+      let format = engine.inputNode.inputFormat(forBus: 0)
+      if format.sampleRate > 0 { return (engine, format) }
+      Thread.sleep(forTimeInterval: 0.05)
+    }
+    throw CadmusError.noInputDevice
   }
 
   private func reset() {

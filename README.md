@@ -40,16 +40,18 @@ Text appears as you speak, one phrase at a time. The cut is a pause, not a
 clock: a phrase is typed once you stop saying it, so nothing ever has to be
 taken back out of a window it was already typed into.
 
-The machine goes quiet while Cadmus listens, and gets its sound back when you
-stop. This is Bluetooth, not politeness: opening the microphone drags a headset
-into the hands free profile, and anything still playing through it comes out
-broken. Cadmus pauses what is playing and mutes the output device, then puts
-both back exactly as they were.
+Cadmus records from the built in microphone, whatever the default input is. A
+Bluetooth headset has two profiles and only one of them has a microphone, so
+opening it wrecks whatever is playing, and closing it hands the next recording a
+device with no microphone at all. Never opening it avoids the whole thing, and
+your headphones keep playing at full quality throughout.
+
+The machine also goes quiet while Cadmus listens, and gets its sound back when
+you stop. That is no longer needed to protect the audio, it is so that nothing
+playing gets recorded along with you. `CADMUS_QUIET=0` turns it off.
 
 Watch the menu bar: `◌` the microphone is opening, `●` it is listening, `…`
-Cadmus is catching up on what you already said, `○` idle. Wait for `●` before
-talking, because on a headset the profile has to change first and anything said
-before it is gone.
+Cadmus is catching up on what you already said, `○` idle.
 
 ## Environment
 - `CADMUS_INSERT`: `keystrokes` (default) or `paste`.
@@ -57,3 +59,4 @@ before it is gone.
 - `CADMUS_VOICE_FLOOR`: loudness under which audio is not speech, `0.012` by
   default. Raise it if a quiet room ends phrases late, lower it if Cadmus cuts
   you off mid sentence.
+- `CADMUS_QUIET`: `0` to leave the machine's sound alone while recording.
