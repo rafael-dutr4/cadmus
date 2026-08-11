@@ -34,20 +34,22 @@ The first run asks for the microphone and for accessibility (the right to type
 into other applications). Both are granted per binary path, so keep the bundle
 where it is.
 
-Ctrl+Option+D starts recording, the same keys stop it. The menu bar shows the
-state: `○` idle, `●` recording, `…` transcribing.
+Ctrl+Option+D starts recording, the same keys stop it.
 
 Text appears as you speak, one phrase at a time. The cut is a pause, not a
 clock: a phrase is typed once you stop saying it, so nothing ever has to be
 taken back out of a window it was already typed into.
 
-If something is playing when you start recording, Cadmus pauses it and starts it
-again when you stop. This is not politeness, it is Bluetooth: a headset cannot
-carry good audio out and a microphone in at the same time, so while music plays
-it has no microphone at all. Only what Cadmus paused is ever resumed.
+The machine goes quiet while Cadmus listens, and gets its sound back when you
+stop. This is Bluetooth, not politeness: opening the microphone drags a headset
+into the hands free profile, and anything still playing through it comes out
+broken. Cadmus pauses what is playing and mutes the output device, then puts
+both back exactly as they were.
 
-The sound you hear is the microphone becoming live, which on a Bluetooth headset
-is a moment after the hotkey. Wait for it before talking.
+Watch the menu bar: `◌` the microphone is opening, `●` it is listening, `…`
+Cadmus is catching up on what you already said, `○` idle. Wait for `●` before
+talking, because on a headset the profile has to change first and anything said
+before it is gone.
 
 ## Environment
 - `CADMUS_INSERT`: `keystrokes` (default) or `paste`.

@@ -28,9 +28,9 @@ final class Cadmus: NSObject, NSApplicationDelegate {
   /// Cadmus apart from one that is still catching up after I stopped talking.
   private var pending = 0
 
-  /// Whether Cadmus is the one who paused the music. Only what Cadmus stopped
-  /// is ever started again: if I had already paused it myself, it stays paused.
-  private var pausedPlayback = false
+  /// Whether the microphone is actually delivering audio yet, which on a
+  /// Bluetooth headset is a moment after the hotkey.
+  private var micLive = false
 
   private let method: Typist.Method = {
     // The open question of the project, so it is switchable without a
@@ -66,11 +66,25 @@ final class Cadmus: NSObject, NSApplicationDelegate {
       Task { @MainActor in self?.enqueue(samples) }
     }
 
-    // The sound means the microphone is live, not that the hotkey was seen.
-    // With a Bluetooth headset those are a second apart, and anything said in
-    // between is gone.
-    recorder.onReady = {
-      Task { @MainActor in NSSound(named: "Tink")?.play() }
+    // The microphone becoming live is not the same moment as the hotkey. With
+    // a Bluetooth headset they are a moment apart, and anything said in between
+    // is gone, so the icon has to tell them apart. It cannot be a sound any
+    // more, because by then the machine is muted.
+    recorder.onReady = { [weak self] in
+      Task { @MainActor in
+        self?.micLive = true
+        self?.redraw()
+      }
+    }
+
+    // A Cadmus that dies holding the mute leaves the machine silent with no
+    // sign of why, which is a worse bug than the one muting solves. Quitting
+    // goes through the delegate, and being killed goes through these.
+    for killed in [SIGTERM, SIGINT, SIGHUP] {
+      signal(killed) { _ in
+        Playback.restore()
+        exit(1)
+      }
     }
 
     do {
@@ -84,32 +98,35 @@ final class Cadmus: NSObject, NSApplicationDelegate {
     redraw()
   }
 
+  func applicationWillTerminate(_ notification: Notification) {
+    Playback.restore()
+  }
+
   private func toggle() {
     recorder.isRecording ? finish() : begin()
   }
 
   private func begin() {
-    // Before the microphone, not after. A Bluetooth headset playing music has
-    // no microphone at all, so the music has to stop for one to exist.
-    pausedPlayback = Playback.pauseIfPlaying()
+    // Before the microphone, not after. Opening the microphone is what drags a
+    // Bluetooth headset into the profile that makes everything else sound
+    // broken, so the machine goes quiet first and stays quiet until I stop.
+    micLive = false
+    Playback.silence()
     do {
       try recorder.start()
       redraw()
     } catch {
-      if pausedPlayback { Playback.resume() }
-      pausedPlayback = false
+      Playback.restore()
       fail(error)
     }
   }
 
-  /// Stopping only closes the microphone. Everything said before it is already
-  /// on its way, or already typed.
+  /// Stopping closes the microphone and gives the machine its sound back.
+  /// Everything said before it is already on its way, or already typed.
   private func finish() {
     recorder.stop()
-    if pausedPlayback {
-      pausedPlayback = false
-      Playback.resume()
-    }
+    micLive = false
+    Playback.restore()
     redraw()
   }
 
@@ -132,12 +149,14 @@ final class Cadmus: NSObject, NSApplicationDelegate {
     }
   }
 
-  /// `●` listening, `…` catching up, `○` idle. Recording and transcribing
-  /// overlap now, so the icon shows the microphone first: knowing whether it is
-  /// listening matters more than knowing it is busy.
+  /// `◌` opening the microphone, `●` listening, `…` catching up, `○` idle.
+  ///
+  /// The first two used to be one state and a sound. They are separate now
+  /// because the machine is muted while I dictate, so the icon is the only
+  /// thing left that can tell me when it is safe to talk.
   private func redraw() {
     if recorder.isRecording {
-      statusItem.button?.title = "●"
+      statusItem.button?.title = micLive ? "●" : "◌"
     } else {
       statusItem.button?.title = pending > 0 ? "…" : "○"
     }
