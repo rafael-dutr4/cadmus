@@ -22,8 +22,13 @@ what is in front of it.
 ## Running
 ```bash
 make model   # downloads ggml-small.en (about 470MB) into models/
-make run
+make start   # runs it, detached from the terminal
 ```
+
+Cadmus has to be running for the hotkey to do anything, but it does not need a
+terminal. `make run` keeps it in the foreground with its log visible, which is
+the one to use while working on it. `make install` puts a launch agent in place
+so it starts at login, and `make uninstall` removes it.
 
 The first run asks for the microphone and for accessibility (the right to type
 into other applications). Both are granted per binary path, so keep the bundle

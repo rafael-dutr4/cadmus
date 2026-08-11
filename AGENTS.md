@@ -24,10 +24,14 @@ Sources/CWhisper/               the module map over whisper.h
 
 ## Build
 ```bash
-make app     # builds and bundles into Cadmus.app
-make run     # builds, bundles and runs
-make model   # downloads the model into models/
-make fmt     # swift-format, two space indentation
+make app       # builds and bundles into Cadmus.app
+make run       # foreground, log visible, for working on it
+make start     # detached, for using it
+make stop      # stops it
+make install   # launch agent, starts at login
+make uninstall # removes the launch agent
+make model     # downloads the model into models/
+make fmt       # swift-format, two space indentation
 ```
 
 `whisper.cpp` comes from Homebrew (`brew install whisper-cpp`) and the module map

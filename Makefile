@@ -2,7 +2,10 @@ MODEL := models/ggml-small.en.bin
 MODEL_URL := https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
 APP := Cadmus.app
 
-.PHONY: build app run model fmt clean
+AGENT := br.dutra.cadmus
+PLIST := $(HOME)/Library/LaunchAgents/$(AGENT).plist
+
+.PHONY: build app run start stop install uninstall model fmt clean
 
 build:
 	swift build -c release
@@ -22,8 +25,40 @@ app: build
 	# Ad hoc signature. Unsigned, the permissions are re-asked on every build.
 	codesign --force --sign - --identifier br.dutra.cadmus $(APP)
 
+# Tied to this terminal, so the log is visible and Ctrl+C stops it. This is the
+# one to use while working on Cadmus.
 run: app
 	./$(APP)/Contents/MacOS/Cadmus
+
+# Detached, for actually using it. Closing the terminal does not stop it.
+start: app
+	open $(APP)
+
+stop:
+	pkill -f "$(APP)/Contents/MacOS/Cadmus" || true
+
+# Starts Cadmus at login. There is no KeepAlive on purpose: Quit in the menu
+# means quit, not restart in a second.
+install: app
+	@printf '%s\n' \
+	  '<?xml version="1.0" encoding="UTF-8"?>' \
+	  '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+	  '<plist version="1.0">' \
+	  '<dict>' \
+	  '	<key>Label</key><string>$(AGENT)</string>' \
+	  '	<key>ProgramArguments</key>' \
+	  '	<array><string>$(CURDIR)/$(APP)/Contents/MacOS/Cadmus</string></array>' \
+	  '	<key>RunAtLoad</key><true/>' \
+	  '	<key>ProcessType</key><string>Interactive</string>' \
+	  '</dict>' \
+	  '</plist>' > $(PLIST)
+	launchctl bootout gui/$(shell id -u)/$(AGENT) 2>/dev/null || true
+	launchctl bootstrap gui/$(shell id -u) $(PLIST)
+	@echo "Cadmus starts at login. Undo with: make uninstall"
+
+uninstall:
+	launchctl bootout gui/$(shell id -u)/$(AGENT) 2>/dev/null || true
+	rm -f $(PLIST)
 
 model: $(MODEL)
 
