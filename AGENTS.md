@@ -12,10 +12,16 @@ a keyboard, not an agent, which is why it works the same in a terminal, in
 Obsidian and in a browser field. Do not add anything that submits, sends or
 interprets the text.
 
+A phrase is only typed once it is finished. Text goes into a window Cadmus does
+not own, where nothing can be retracted, so anything provisional would have to
+be corrected with backspaces into somebody else's document. Do not add a mode
+that types a guess and fixes it later.
+
 ## Layout
 ```text
 Sources/Cadmus/main.swift        menu bar, hotkey, the cycle
-Sources/Cadmus/Recorder.swift    microphone to 16 kHz mono float, in memory
+Sources/Cadmus/Recorder.swift    microphone to 16 kHz mono float, cut at pauses
+Sources/Cadmus/AudioDevice.swift finding the built in microphone
 Sources/Cadmus/Transcriber.swift whisper.cpp
 Sources/Cadmus/Typist.swift      putting text into the focused application
 Sources/Cadmus/Hotkey.swift      the system wide hotkey
@@ -51,3 +57,5 @@ granting both again.
 ## Environment
 - `CADMUS_INSERT`: `keystrokes` (default) or `paste`.
 - `CADMUS_MODEL`: path to a different ggml model.
+- `CADMUS_INPUT`: `builtin` (default) or `default`.
+- `CADMUS_VOICE_FLOOR`: the loudness under which audio is not speech.

@@ -4,7 +4,7 @@
 @preconcurrency import AVFoundation
 
 /// Captures the microphone into the exact buffer the model wants: 16 kHz, mono,
-/// float. Nothing is ever written to disk.
+/// float, and cuts it into phrases. Nothing is ever written to disk.
 ///
 /// Two threads touch this: the main thread starts and stops it, the audio
 /// thread appends to it. The lock is what makes that safe, so the promise to
@@ -14,15 +14,19 @@ final class Recorder: @unchecked Sendable {
   /// Converting here means it never has to.
   static let sampleRate: Double = 16_000
 
+  /// Called with one finished phrase, from the audio thread. The caller has to
+  /// get itself somewhere else before doing anything slow with it.
+  var onSegment: (([Float]) -> Void)?
+
   private let engine = AVAudioEngine()
   private var converter: AVAudioConverter?
-  private var samples: [Float] = []
+  private var current: [Float] = []
+  private var voiced: Double = 0
+  private var silence: Double = 0
   private let lock = NSLock()
 
   private(set) var isRecording = false
 
-  /// The format the tap produces, and the only format the rest of the program
-  /// knows about.
   private let targetFormat = AVAudioFormat(
     commonFormat: .pcmFormatFloat32,
     sampleRate: Recorder.sampleRate,
@@ -30,17 +34,44 @@ final class Recorder: @unchecked Sendable {
     interleaved: false
   )!
 
+  // MARK: - Where a phrase ends
+  //
+  // The cut is a pause, not a clock. Whisper reads a whole phrase at once and
+  // guesses badly at half of one, so cutting mid word to be quick would buy
+  // latency with the accuracy that is the point of the project.
+  //
+  // A pause is also the only cut that never has to be taken back. The text goes
+  // into somebody else's window, where nothing can be retracted, so a phrase is
+  // only typed once it is finished.
+
+  /// Anything under this is not speech. Tunable because it depends on the
+  /// microphone and on how loudly I talk: too high cuts me off mid sentence,
+  /// too low never cuts at all.
+  private let voiceFloor: Float =
+    ProcessInfo.processInfo.environment["CADMUS_VOICE_FLOOR"].flatMap(Float.init) ?? 0.012
+
+  /// How long the quiet has to last to count as the end of a phrase. Longer
+  /// than the pause inside a sentence, shorter than the one between two.
+  private let pause: Double = 0.7
+
+  /// Below this there is no phrase, only a noise that crossed the floor.
+  private let shortestPhrase: Double = 0.3
+
+  /// If I never pause, the phrase is cut anyway. Whisper's window is 30
+  /// seconds and anything past it is dropped without a word about it.
+  private let longestPhrase: Double = 20
+
   func start() throws {
     guard !isRecording else { return }
-
-    lock.withLock { samples.removeAll(keepingCapacity: true) }
+    reset()
 
     let input = engine.inputNode
-    // The hardware picks this, not me. It is usually 48 kHz stereo.
+    selectInputDevice(for: input)
+
+    // Read after the device is set, not before: the format belongs to whatever
+    // device the node is pointed at.
     let inputFormat = input.inputFormat(forBus: 0)
-    guard inputFormat.sampleRate > 0 else {
-      throw CadmusError.noInputDevice
-    }
+    guard inputFormat.sampleRate > 0 else { throw CadmusError.noInputDevice }
     converter = AVAudioConverter(from: inputFormat, to: targetFormat)
 
     input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
@@ -52,14 +83,41 @@ final class Recorder: @unchecked Sendable {
     isRecording = true
   }
 
-  /// Stops the engine and hands over everything captured.
-  @discardableResult
-  func stop() -> [Float] {
-    guard isRecording else { return [] }
+  /// Stops the engine and flushes whatever phrase was still open.
+  func stop() {
+    guard isRecording else { return }
     engine.inputNode.removeTap(onBus: 0)
     engine.stop()
     isRecording = false
-    return lock.withLock { samples }
+    emitIfWorthIt()
+  }
+
+  /// Points the engine at the built in microphone instead of the default input.
+  /// See AudioDevice for why. Falling back to the default is deliberate: a
+  /// machine with no built in microphone should still record.
+  private func selectInputDevice(for input: AVAudioInputNode) {
+    guard
+      ProcessInfo.processInfo.environment["CADMUS_INPUT"] != "default",
+      var device = AudioDevice.builtInInput(),
+      let unit = input.audioUnit
+    else { return }
+
+    AudioUnitSetProperty(
+      unit,
+      kAudioOutputUnitProperty_CurrentDevice,
+      kAudioUnitScope_Global,
+      0,
+      &device,
+      UInt32(MemoryLayout<AudioDeviceID>.size)
+    )
+  }
+
+  private func reset() {
+    lock.withLock {
+      current.removeAll(keepingCapacity: true)
+      voiced = 0
+      silence = 0
+    }
   }
 
   private func append(_ buffer: AVAudioPCMBuffer) {
@@ -90,8 +148,47 @@ final class Recorder: @unchecked Sendable {
     guard error == nil, out.frameLength > 0, let channel = out.floatChannelData?[0] else {
       return
     }
-    let chunk = Array(UnsafeBufferPointer(start: channel, count: Int(out.frameLength)))
-    lock.withLock { samples.append(contentsOf: chunk) }
+    accumulate(Array(UnsafeBufferPointer(start: channel, count: Int(out.frameLength))))
+  }
+
+  private func accumulate(_ chunk: [Float]) {
+    let loud = chunk.rms >= voiceFloor
+    let length = chunk.seconds
+
+    let ended: Bool = lock.withLock {
+      // Quiet before a single word has been said is not a pause, it is the wait
+      // before I start. Dropping it keeps the buffer from growing all day, and
+      // keeps a phrase from opening with a minute of nothing in front of it.
+      if !loud && voiced == 0 {
+        current.removeAll(keepingCapacity: true)
+        return false
+      }
+
+      current.append(contentsOf: chunk)
+      if loud {
+        voiced += length
+        silence = 0
+      } else {
+        silence += length
+      }
+
+      let paused = silence >= pause && voiced >= shortestPhrase
+      return paused || current.seconds >= longestPhrase
+    }
+
+    if ended { emitIfWorthIt() }
+  }
+
+  private func emitIfWorthIt() {
+    let phrase: [Float]? = lock.withLock {
+      defer {
+        current.removeAll(keepingCapacity: true)
+        voiced = 0
+        silence = 0
+      }
+      return voiced >= shortestPhrase ? current : nil
+    }
+    if let phrase { onSegment?(phrase) }
   }
 }
 
@@ -101,9 +198,10 @@ private final class Flag: @unchecked Sendable {
 }
 
 extension Array where Element == Float {
-  /// Root mean square, the cheap measure of how loud the take was. This is
-  /// what keeps silence away from the model: given silence Whisper does not
-  /// return nothing, it returns a confident sentence it made up.
+  /// Root mean square, the cheap measure of how loud a piece of audio is. This
+  /// is what finds the pauses, and what keeps silence away from the model:
+  /// given silence Whisper does not return nothing, it returns a confident
+  /// sentence it made up.
   var rms: Float {
     guard !isEmpty else { return 0 }
     let sum = reduce(Float(0)) { $0 + $1 * $1 }
