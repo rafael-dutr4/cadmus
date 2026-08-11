@@ -15,6 +15,11 @@ final class Transcriber: @unchecked Sendable {
   private let threads: Int32
   private let queue = DispatchQueue(label: "br.dutra.cadmus.transcriber")
 
+  /// Below this the model was guessing. Not a measurement of anything, a line
+  /// drawn across a probability, and it is here to be moved once I have seen a
+  /// week of what falls under it.
+  private static let sureEnough: Float = 0.6
+
   /// The Homebrew build of ggml is split: the library that whisper links is a
   /// loader, and the backends that do the arithmetic (Metal, BLAS, and one CPU
   /// build per chip generation) are separate files it opens at runtime. Loading
@@ -49,11 +54,20 @@ final class Transcriber: @unchecked Sendable {
     whisper_free(context)
   }
 
-  func transcribe(_ samples: [Float]) throws -> String {
+  /// What the model returned, and how sure it was of it.
+  struct Transcription {
+    let text: String
+    /// The words the model was least sure about. A word it hedged on is
+    /// usually a word that was said unclearly, which is the only measurement
+    /// of my own pronunciation available without another model.
+    let unsure: [String]
+  }
+
+  func transcribe(_ samples: [Float]) throws -> Transcription {
     try queue.sync { try run(samples) }
   }
 
-  private func run(_ samples: [Float]) throws -> String {
+  private func run(_ samples: [Float]) throws -> Transcription {
     var params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
     params.n_threads = threads
     params.translate = false
@@ -82,15 +96,51 @@ final class Transcriber: @unchecked Sendable {
     guard status == 0 else { throw CadmusError.transcriptionFailed(status) }
 
     var text = ""
-    for index in 0..<whisper_full_n_segments(context) {
-      guard let segment = whisper_full_get_segment_text(context, index) else { continue }
-      text += String(cString: segment)
+    var unsure: [String] = []
+    for segment in 0..<whisper_full_n_segments(context) {
+      guard let contents = whisper_full_get_segment_text(context, segment) else { continue }
+      text += String(cString: contents)
+      unsure += hedgedWords(in: segment)
     }
     text = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
     // Handed audio with no speech in it, the model does not return nothing. It
     // returns its own name for nothing, and that is not text I want typed.
-    guard Vocabulary.isSpeech(text) else { return "" }
-    return Vocabulary.correct(text)
+    guard Vocabulary.isSpeech(text) else { return Transcription(text: "", unsure: []) }
+    return Transcription(text: Vocabulary.correct(text), unsure: unsure)
+  }
+
+  /// The words the model hedged on.
+  ///
+  /// Whisper reports a probability per token, and a token is often a piece of a
+  /// word, so the pieces are joined back up before being judged. Punctuation is
+  /// skipped: the model is frequently unsure where a comma goes and that says
+  /// nothing about how anything was said.
+  private func hedgedWords(in segment: Int32) -> [String] {
+    var words: [(text: String, worst: Float)] = []
+
+    for index in 0..<whisper_full_n_tokens(context, segment) {
+      guard let raw = whisper_full_get_token_text(context, segment, index) else { continue }
+      let piece = String(cString: raw)
+      // Timestamps and the rest of the model's own markers.
+      guard !piece.hasPrefix("[_") else { continue }
+
+      let probability = whisper_full_get_token_p(context, segment, index)
+      // A piece that does not start a new word belongs to the previous one, and
+      // a word is only as certain as its least certain piece.
+      if piece.hasPrefix(" ") || words.isEmpty {
+        words.append((piece, probability))
+      } else {
+        words[words.count - 1].text += piece
+        words[words.count - 1].worst = min(words[words.count - 1].worst, probability)
+      }
+    }
+
+    return
+      words
+      .map { (word: $0.text.trimmingCharacters(in: .whitespaces), worst: $0.worst) }
+      .filter { $0.worst < Transcriber.sureEnough }
+      .map { $0.word.trimmingCharacters(in: CharacterSet(charactersIn: ".,!?;:\"'")) }
+      .filter { $0.count > 1 }
   }
 }

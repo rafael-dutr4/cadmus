@@ -17,6 +17,11 @@ not own, where nothing can be retracted, so anything provisional would have to
 be corrected with backspaces into somebody else's document. Do not add a mode
 that types a guess and fixes it later.
 
+Cadmus does not coach either. The journal in `~/.local/share/cadmus/` is a
+record to be read later, by me or by an agent. Do not make Cadmus judge what
+was said, correct my grammar, or show me a score. It keeps the record and stops
+there, the same way it types the text and stops there.
+
 ## Layout
 ```text
 Sources/Cadmus/main.swift        menu bar, hotkey, the cycle
@@ -24,6 +29,8 @@ Sources/Cadmus/Recorder.swift    microphone to 16 kHz mono float, cut at pauses
 Sources/Cadmus/Playback.swift    silencing the machine while the microphone is open
 Sources/Cadmus/InputDevice.swift making the built in microphone the default
 Sources/Cadmus/Transcriber.swift whisper.cpp
+Sources/Cadmus/Vocabulary.swift  my words, before the model and after it
+Sources/Cadmus/Journal.swift     the record of what was said
 Sources/Cadmus/Typist.swift      putting text into the focused application
 Sources/Cadmus/Hotkey.swift      the system wide hotkey
 Sources/CWhisper/               the module map over whisper.h
@@ -60,3 +67,5 @@ granting both again.
 - `CADMUS_MODEL`: path to a different ggml model.
 - `CADMUS_VOICE_FLOOR`: the loudness under which audio is not speech.
 - `CADMUS_QUIET`: `0` to leave the machine's sound alone while recording.
+- `CADMUS_PAUSE`: seconds of quiet that end a phrase.
+- `CADMUS_JOURNAL`: `0` to keep no record of what was said.

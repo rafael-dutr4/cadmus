@@ -53,10 +53,35 @@ playing gets recorded along with you. `CADMUS_QUIET=0` turns it off.
 Watch the menu bar: `◌` the microphone is opening, `●` it is listening, `…`
 Cadmus is catching up on what you already said, `○` idle.
 
+## The journal
+Cadmus keeps a record of what it heard, one JSON line per phrase, in
+`~/.local/share/cadmus/`. It is there to be read later, by me or by an agent,
+to answer questions like which words keep coming out unclear and whether I am
+getting faster.
+
+```json
+{"said": "I'm trying to connect a GitHub repo", "unsure": ["repo"],
+ "words": 7, "speech": 3.1, "wpm": 135, "hesitations": 1, "fillers": 0}
+```
+
+Every number is one the recorder already computed to find the end of the
+phrase, and `unsure` is the model's own confidence: Whisper reports a
+probability per token, and a word it hedged on is usually a word that was said
+unclearly. Nothing is measured for the journal, it is only kept instead of
+thrown away.
+
+Cadmus does not coach and is not going to. It keeps the record and stops there,
+the same way it types the text and stops there.
+
+The audio is still never written. This is text, it never leaves the machine, and
+`CADMUS_JOURNAL=0` turns it off.
+
 ## Environment
 - `CADMUS_INSERT`: `keystrokes` (default) or `paste`.
 - `CADMUS_MODEL`: path to a different ggml model.
-- `CADMUS_VOICE_FLOOR`: loudness under which audio is not speech, `0.012` by
-  default. Raise it if a quiet room ends phrases late, lower it if Cadmus cuts
-  you off mid sentence.
+- `CADMUS_VOICE_FLOOR`: forces the loudness under which audio is not speech.
+  Cadmus measures the room and works this out on its own, so this is for
+  arguing with the measurement rather than for making it work.
 - `CADMUS_QUIET`: `0` to leave the machine's sound alone while recording.
+- `CADMUS_PAUSE`: seconds of quiet that end a phrase, `1.4` by default.
+- `CADMUS_JOURNAL`: `0` to keep no record of what was said.

@@ -14,9 +14,24 @@ final class Recorder: @unchecked Sendable {
   /// Converting here means it never has to.
   static let sampleRate: Double = 16_000
 
+  /// One finished phrase, and what was measured while it was said.
+  ///
+  /// The numbers are free: they are the same ones that decided where the phrase
+  /// ended. Nothing here is computed for the journal, it is only kept instead
+  /// of thrown away.
+  struct Take {
+    let samples: [Float]
+    /// Seconds that were actually speech, not the length of the recording.
+    let speech: Double
+    let seconds: Double
+    /// Gaps long enough to notice but too short to end the phrase. This is
+    /// hesitation, which is the thing worth practising away.
+    let hesitations: Int
+  }
+
   /// Called with one finished phrase, from the audio thread. The caller has to
   /// get itself somewhere else before doing anything slow with it.
-  var onSegment: (([Float]) -> Void)?
+  var onSegment: ((Take) -> Void)?
 
   /// Called once, when the first real audio arrives.
   ///
@@ -35,6 +50,8 @@ final class Recorder: @unchecked Sendable {
   private var current: [Float] = []
   private var voiced: Double = 0
   private var silence: Double = 0
+  private var hesitations = 0
+  private var countedThisGap = false
   private let lock = NSLock()
 
   private(set) var isRecording = false
@@ -103,6 +120,10 @@ final class Recorder: @unchecked Sendable {
 
   /// Below this there is no phrase, only a noise that crossed the floor.
   private let shortestPhrase: Double = 0.5
+
+  /// A gap long enough to hear as a hesitation, short enough that the sentence
+  /// is still going.
+  private let hesitation: Double = 0.35
 
   /// If I never pause, the phrase is cut anyway. Whisper's window is 30
   /// seconds and anything past it is dropped without a word about it.
@@ -257,8 +278,15 @@ final class Recorder: @unchecked Sendable {
       if loud {
         voiced += length
         silence = 0
+        countedThisGap = false
       } else {
         silence += length
+        // Counted once per gap, and only for gaps that are noticeable without
+        // being the end of the phrase.
+        if !countedThisGap, silence >= hesitation, silence < pause {
+          hesitations += 1
+          countedThisGap = true
+        }
       }
 
       let paused = silence >= pause && voiced >= shortestPhrase
@@ -275,15 +303,23 @@ final class Recorder: @unchecked Sendable {
         format: "phrase ended: %.1fs of speech in %.1fs of audio, loudness %.4f (floor %.4f)",
         heard.0, heard.1, heard.2, voiceFloor))
 
-    let phrase: [Float]? = lock.withLock {
+    let take: Take? = lock.withLock {
       defer {
         current.removeAll(keepingCapacity: true)
         voiced = 0
         silence = 0
+        hesitations = 0
+        countedThisGap = false
       }
-      return voiced >= shortestPhrase ? current : nil
+      guard voiced >= shortestPhrase else { return nil }
+      return Take(
+        samples: current,
+        speech: voiced,
+        seconds: current.seconds,
+        hesitations: hesitations
+      )
     }
-    if let phrase { onSegment?(phrase) }
+    if let take { onSegment?(take) }
   }
 }
 

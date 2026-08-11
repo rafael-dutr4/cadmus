@@ -79,8 +79,8 @@ final class Cadmus: NSObject, NSApplicationDelegate {
 
     // The audio thread hands over a finished phrase. Nothing slow can happen
     // there, so it goes straight to the worker.
-    recorder.onSegment = { [weak self] samples in
-      Task { @MainActor in self?.enqueue(samples) }
+    recorder.onSegment = { [weak self] take in
+      Task { @MainActor in self?.enqueue(take) }
     }
 
     // The microphone becoming live is not the same moment as the hotkey. With
@@ -162,26 +162,34 @@ final class Cadmus: NSObject, NSApplicationDelegate {
     redraw()
   }
 
-  private func enqueue(_ samples: [Float]) {
+  private func enqueue(_ take: Recorder.Take) {
     guard let transcriber else { return }
     pending += 1
     redraw()
 
     let method = self.method
-    Log.say(
-      String(format: "phrase of %.1fs handed to the model", samples.seconds))
+    Log.say(String(format: "phrase of %.1fs handed to the model", take.seconds))
     worker.async {
-      let text: String
+      let transcription: Transcriber.Transcription
       do {
-        text = try transcriber.transcribe(samples)
+        transcription = try transcriber.transcribe(take.samples)
       } catch {
         Log.say("the model failed: \(error.localizedDescription)")
-        text = ""
+        transcription = Transcriber.Transcription(text: "", unsure: [])
       }
+
+      // Written here rather than after typing, so what I said is kept even if
+      // the keystrokes go nowhere.
+      Journal.record(take, as: transcription)
+
+      let text = transcription.text
       DispatchQueue.main.async {
         self.pending -= 1
         self.redraw()
         Log.say("the model said: \(text.isEmpty ? "(nothing)" : "\"\(text)\"")")
+        if !transcription.unsure.isEmpty {
+          Log.say("unsure about: \(transcription.unsure.joined(separator: ", "))")
+        }
         guard !text.isEmpty else { return }
         Log.say("typing it with \(method.rawValue)")
         // A space after, so the next phrase does not weld itself to this one.
