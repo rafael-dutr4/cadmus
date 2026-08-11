@@ -18,6 +18,15 @@ final class Recorder: @unchecked Sendable {
   /// get itself somewhere else before doing anything slow with it.
   var onSegment: (([Float]) -> Void)?
 
+  /// Called once, when the first real audio arrives.
+  ///
+  /// Starting the engine and hearing something are not the same moment. A
+  /// Bluetooth headset has to change profile before its microphone exists, and
+  /// that takes a noticeable while, so this is what tells me it is safe to
+  /// talk instead of me guessing.
+  var onReady: (() -> Void)?
+  private var ready = false
+
   private let engine = AVAudioEngine()
   private var converter: AVAudioConverter?
   private var current: [Float] = []
@@ -66,10 +75,6 @@ final class Recorder: @unchecked Sendable {
     reset()
 
     let input = engine.inputNode
-    selectInputDevice(for: input)
-
-    // Read after the device is set, not before: the format belongs to whatever
-    // device the node is pointed at.
     let inputFormat = input.inputFormat(forBus: 0)
     guard inputFormat.sampleRate > 0 else { throw CadmusError.noInputDevice }
     converter = AVAudioConverter(from: inputFormat, to: targetFormat)
@@ -92,27 +97,8 @@ final class Recorder: @unchecked Sendable {
     emitIfWorthIt()
   }
 
-  /// Points the engine at the built in microphone instead of the default input.
-  /// See AudioDevice for why. Falling back to the default is deliberate: a
-  /// machine with no built in microphone should still record.
-  private func selectInputDevice(for input: AVAudioInputNode) {
-    guard
-      ProcessInfo.processInfo.environment["CADMUS_INPUT"] != "default",
-      var device = AudioDevice.builtInInput(),
-      let unit = input.audioUnit
-    else { return }
-
-    AudioUnitSetProperty(
-      unit,
-      kAudioOutputUnitProperty_CurrentDevice,
-      kAudioUnitScope_Global,
-      0,
-      &device,
-      UInt32(MemoryLayout<AudioDeviceID>.size)
-    )
-  }
-
   private func reset() {
+    ready = false
     lock.withLock {
       current.removeAll(keepingCapacity: true)
       voiced = 0
@@ -122,6 +108,11 @@ final class Recorder: @unchecked Sendable {
 
   private func append(_ buffer: AVAudioPCMBuffer) {
     guard let converter else { return }
+
+    if !ready, buffer.frameLength > 0 {
+      ready = true
+      onReady?()
+    }
 
     let ratio = targetFormat.sampleRate / buffer.format.sampleRate
     let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 1024

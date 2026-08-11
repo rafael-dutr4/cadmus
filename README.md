@@ -41,16 +41,17 @@ Text appears as you speak, one phrase at a time. The cut is a pause, not a
 clock: a phrase is typed once you stop saying it, so nothing ever has to be
 taken back out of a window it was already typed into.
 
-Cadmus records from the built in microphone, not from the default input. A
-Bluetooth headset cannot carry good audio out and a microphone in at the same
-time, so taking the default would either give silence while music plays or drag
-the headset down to hands free quality. `CADMUS_INPUT=default` restores the
-normal behaviour.
+If something is playing when you start recording, Cadmus pauses it and starts it
+again when you stop. This is not politeness, it is Bluetooth: a headset cannot
+carry good audio out and a microphone in at the same time, so while music plays
+it has no microphone at all. Only what Cadmus paused is ever resumed.
+
+The sound you hear is the microphone becoming live, which on a Bluetooth headset
+is a moment after the hotkey. Wait for it before talking.
 
 ## Environment
 - `CADMUS_INSERT`: `keystrokes` (default) or `paste`.
 - `CADMUS_MODEL`: path to a different ggml model.
-- `CADMUS_INPUT`: `builtin` (default) or `default`.
 - `CADMUS_VOICE_FLOOR`: loudness under which audio is not speech, `0.012` by
   default. Raise it if a quiet room ends phrases late, lower it if Cadmus cuts
   you off mid sentence.

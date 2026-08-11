@@ -28,6 +28,10 @@ final class Cadmus: NSObject, NSApplicationDelegate {
   /// Cadmus apart from one that is still catching up after I stopped talking.
   private var pending = 0
 
+  /// Whether Cadmus is the one who paused the music. Only what Cadmus stopped
+  /// is ever started again: if I had already paused it myself, it stays paused.
+  private var pausedPlayback = false
+
   private let method: Typist.Method = {
     // The open question of the project, so it is switchable without a
     // rebuild: CADMUS_INSERT=paste.
@@ -62,6 +66,13 @@ final class Cadmus: NSObject, NSApplicationDelegate {
       Task { @MainActor in self?.enqueue(samples) }
     }
 
+    // The sound means the microphone is live, not that the hotkey was seen.
+    // With a Bluetooth headset those are a second apart, and anything said in
+    // between is gone.
+    recorder.onReady = {
+      Task { @MainActor in NSSound(named: "Tink")?.play() }
+    }
+
     do {
       transcriber = try Transcriber(modelPath: modelPath)
       hotkey = try Hotkey(keyCode: hotkeyCode, modifiers: hotkeyModifiers) { [weak self] in
@@ -78,11 +89,15 @@ final class Cadmus: NSObject, NSApplicationDelegate {
   }
 
   private func begin() {
+    // Before the microphone, not after. A Bluetooth headset playing music has
+    // no microphone at all, so the music has to stop for one to exist.
+    pausedPlayback = Playback.pauseIfPlaying()
     do {
       try recorder.start()
-      NSSound(named: "Tink")?.play()
       redraw()
     } catch {
+      if pausedPlayback { Playback.resume() }
+      pausedPlayback = false
       fail(error)
     }
   }
@@ -91,6 +106,10 @@ final class Cadmus: NSObject, NSApplicationDelegate {
   /// on its way, or already typed.
   private func finish() {
     recorder.stop()
+    if pausedPlayback {
+      pausedPlayback = false
+      Playback.resume()
+    }
     redraw()
   }
 
