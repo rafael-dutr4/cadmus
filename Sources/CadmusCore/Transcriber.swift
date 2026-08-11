@@ -127,8 +127,11 @@ public final class Transcriber: @unchecked Sendable {
     for index in 0..<whisper_full_n_tokens(context, segment) {
       guard let raw = whisper_full_get_token_text(context, segment, index) else { continue }
       let piece = String(cString: raw)
-      // Timestamps and the rest of the model's own markers.
-      guard !piece.hasPrefix("[_") else { continue }
+      // The model's own markers, not words. Timestamps arrive as `[_TT_]` and
+      // the control tokens as `<|endoftext|>`, and the latter was coming
+      // through glued to the last real word, so "thousand" was reported back
+      // to me as "Dreamtoxin.<|endoftext|>".
+      guard !piece.hasPrefix("[_"), !piece.contains("<|") else { continue }
 
       let probability = whisper_full_get_token_p(context, segment, index)
       // A piece that does not start a new word belongs to the previous one, and

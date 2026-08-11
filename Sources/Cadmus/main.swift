@@ -1,7 +1,7 @@
 import AVFoundation
 import AppKit
-import Carbon.HIToolbox
 import CadmusCore
+import Carbon.HIToolbox
 
 /// Ctrl+Option+D. One key to start, the same key to stop. Not hold to talk: a
 /// prompt is half a minute of speech and holding a key down that long is
