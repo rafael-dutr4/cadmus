@@ -9,29 +9,31 @@
 /// Two threads touch this: the main thread starts and stops it, the audio
 /// thread appends to it. The lock is what makes that safe, so the promise to
 /// the compiler is one I actually keep.
-final class Recorder: @unchecked Sendable {
+public final class Recorder: @unchecked Sendable {
   /// Whisper is trained on 16 kHz audio and resamples anything else itself.
   /// Converting here means it never has to.
-  static let sampleRate: Double = 16_000
+  public static let sampleRate: Double = 16_000
 
   /// One finished phrase, and what was measured while it was said.
   ///
   /// The numbers are free: they are the same ones that decided where the phrase
   /// ended. Nothing here is computed for the journal, it is only kept instead
   /// of thrown away.
-  struct Take {
-    let samples: [Float]
+  public struct Take {
+    public let samples: [Float]
     /// Seconds that were actually speech, not the length of the recording.
-    let speech: Double
-    let seconds: Double
+    public let speech: Double
+    public let seconds: Double
     /// Gaps long enough to notice but too short to end the phrase. This is
     /// hesitation, which is the thing worth practising away.
-    let hesitations: Int
+    public let hesitations: Int
   }
 
   /// Called with one finished phrase, from the audio thread. The caller has to
   /// get itself somewhere else before doing anything slow with it.
-  var onSegment: ((Take) -> Void)?
+  public init() {}
+
+  public var onSegment: ((Take) -> Void)?
 
   /// Called once, when the first real audio arrives.
   ///
@@ -39,7 +41,7 @@ final class Recorder: @unchecked Sendable {
   /// Bluetooth headset has to change profile before its microphone exists, and
   /// that takes a noticeable while, so this is what tells me it is safe to
   /// talk instead of me guessing.
-  var onReady: (() -> Void)?
+  public var onReady: (() -> Void)?
   private var ready = false
 
   /// A new engine for every take, and none between them. Holding one open keeps
@@ -54,7 +56,7 @@ final class Recorder: @unchecked Sendable {
   private var countedThisGap = false
   private let lock = NSLock()
 
-  private(set) var isRecording = false
+  public private(set) var isRecording = false
 
   private let targetFormat = AVAudioFormat(
     commonFormat: .pcmFormatFloat32,
@@ -129,7 +131,7 @@ final class Recorder: @unchecked Sendable {
   /// seconds and anything past it is dropped without a word about it.
   private let longestPhrase: Double = 20
 
-  func start() throws {
+  public func start() throws {
     guard !isRecording else { return }
     reset()
 
@@ -166,7 +168,7 @@ final class Recorder: @unchecked Sendable {
 
   /// Stops the engine and flushes whatever phrase was still open. The engine is
   /// dropped rather than kept, so the microphone is actually released.
-  func stop() {
+  public func stop() {
     guard isRecording else { return }
     engine?.inputNode.removeTap(onBus: 0)
     engine?.stop()

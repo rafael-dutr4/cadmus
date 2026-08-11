@@ -23,18 +23,28 @@ was said, correct my grammar, or show me a score. It keeps the record and stops
 there, the same way it types the text and stops there.
 
 ## Layout
+Two targets, and the line between them is the rule of the project. `CadmusCore`
+is voice becoming text and knows nothing about what the text is for. `Cadmus` is
+the keyboard. Fabulinus, which drills my English, depends on the core and wants
+none of the keyboard.
+
 ```text
-Sources/Cadmus/main.swift        menu bar, hotkey, the cycle
-Sources/Cadmus/Recorder.swift    microphone to 16 kHz mono float, cut at pauses
-Sources/Cadmus/Playback.swift    silencing the machine while the microphone is open
-Sources/Cadmus/InputDevice.swift making the built in microphone the default
-Sources/Cadmus/Transcriber.swift whisper.cpp
-Sources/Cadmus/Vocabulary.swift  my words, before the model and after it
-Sources/Cadmus/Journal.swift     the record of what was said
-Sources/Cadmus/Typist.swift      putting text into the focused application
-Sources/Cadmus/Hotkey.swift      the system wide hotkey
-Sources/CWhisper/               the module map over whisper.h
+Sources/CadmusCore/Recorder.swift    microphone to 16 kHz mono float, cut at pauses
+Sources/CadmusCore/Transcriber.swift whisper.cpp, and how sure it was
+Sources/CadmusCore/Vocabulary.swift  my words, before the model and after it
+Sources/CadmusCore/Journal.swift     the record of what was said
+Sources/CadmusCore/InputDevice.swift making the built in microphone the default
+Sources/CadmusCore/Playback.swift    silencing the machine while the microphone is open
+Sources/CadmusCore/Log.swift         a line per stage, on stderr
+Sources/Cadmus/main.swift            menu bar, hotkey, the cycle
+Sources/Cadmus/Typist.swift          putting text into the focused application
+Sources/Cadmus/Hotkey.swift          the system wide hotkey
+Sources/CWhisper/                    the module map over whisper.h
 ```
+
+Anything added to the core has to be true for a program that never types. If it
+knows about the focused window, the hotkey or the menu bar, it belongs in
+`Sources/Cadmus`.
 
 ## Build
 ```bash

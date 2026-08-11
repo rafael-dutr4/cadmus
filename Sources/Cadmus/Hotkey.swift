@@ -1,4 +1,5 @@
 import Carbon.HIToolbox
+import CadmusCore
 
 /// One system wide hotkey.
 ///

@@ -12,7 +12,7 @@ import Foundation
 /// After: what the prompt does not fix gets replaced in the text. Both live in
 /// files rather than in code, because a word I get wrong today should be
 /// fixable by editing a line, the way the rules file works in Aerarium.
-enum Vocabulary {
+public enum Vocabulary {
   private static let directory = FileManager.default.homeDirectoryForCurrentUser
     .appending(path: ".config/cadmus")
 
@@ -22,8 +22,8 @@ enum Vocabulary {
   /// Loaded once. Editing the files means restarting Cadmus, which is honest:
   /// a prompt that changed halfway through a take would make two phrases of the
   /// same sentence disagree.
-  static let prompt: String? = loadPrompt()
-  static let replacements: [(String, String)] = loadReplacements()
+  public static let prompt: String? = loadPrompt()
+  public static let replacements: [(String, String)] = loadReplacements()
 
   /// Whisper's own name for a stretch of nothing, and its cousins. It writes
   /// these when handed audio with no speech in it, and they are not text I ever
@@ -38,7 +38,7 @@ enum Vocabulary {
   /// A bare "you" is on the list because it is what this model returns for a
   /// second of room tone, which happens more often than anybody says the word
   /// alone.
-  static func isSpeech(_ text: String) -> Bool {
+  public static func isSpeech(_ text: String) -> Bool {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return false }
     let bare = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: ".,!? "))
@@ -46,7 +46,7 @@ enum Vocabulary {
   }
 
   /// Applies every replacement, in the order they are written.
-  static func correct(_ text: String) -> String {
+  public static func correct(_ text: String) -> String {
     replacements.reduce(text) { result, pair in
       result.replacingOccurrences(
         of: pair.0, with: pair.1, options: [.caseInsensitive, .diacriticInsensitive])

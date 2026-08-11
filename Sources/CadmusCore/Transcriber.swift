@@ -10,7 +10,7 @@ import Foundation
 /// One take at a time. The hotkey is free to start a new recording while the
 /// last one is still transcribing, and two calls into the same whisper context
 /// at once would corrupt its state, so the queue serializes them.
-final class Transcriber: @unchecked Sendable {
+public final class Transcriber: @unchecked Sendable {
   private let context: OpaquePointer
   private let threads: Int32
   private let queue = DispatchQueue(label: "br.dutra.cadmus.transcriber")
@@ -30,7 +30,7 @@ final class Transcriber: @unchecked Sendable {
   /// argument here.
   private static let backends: Void = ggml_backend_load_all()
 
-  init(modelPath: String) throws {
+  public init(modelPath: String) throws {
     guard FileManager.default.fileExists(atPath: modelPath) else {
       throw CadmusError.modelMissing(modelPath)
     }
@@ -55,15 +55,20 @@ final class Transcriber: @unchecked Sendable {
   }
 
   /// What the model returned, and how sure it was of it.
-  struct Transcription {
-    let text: String
+  public struct Transcription {
+    public let text: String
     /// The words the model was least sure about. A word it hedged on is
     /// usually a word that was said unclearly, which is the only measurement
     /// of my own pronunciation available without another model.
-    let unsure: [String]
+    public let unsure: [String]
+
+    public init(text: String, unsure: [String]) {
+      self.text = text
+      self.unsure = unsure
+    }
   }
 
-  func transcribe(_ samples: [Float]) throws -> Transcription {
+  public func transcribe(_ samples: [Float]) throws -> Transcription {
     try queue.sync { try run(samples) }
   }
 

@@ -14,9 +14,15 @@ import Foundation
 ///
 /// The audio is still never written. This is text, and it is only ever on this
 /// machine.
-enum Journal {
-  private static let directory = FileManager.default.homeDirectoryForCurrentUser
-    .appending(path: ".local/share/cadmus")
+public enum Journal {
+  /// Whose journal this is. Cadmus keeps one of everything I dictate;
+  /// Fabulinus keeps one of everything I practised. Same shape, same reader,
+  /// different question, so they are different files.
+  nonisolated(unsafe) public static var name = "cadmus"
+
+  private static var directory: URL {
+    FileManager.default.homeDirectoryForCurrentUser.appending(path: ".local/share/\(name)")
+  }
 
   /// On unless told otherwise. Everything I dictate ends up here, which is
   /// worth knowing: CADMUS_JOURNAL=0 turns it off.
@@ -30,7 +36,7 @@ enum Journal {
 
   /// One file per day, one JSON object per line. A line is appended and never
   /// revisited, so a crash costs the phrase being written and not the day.
-  static func record(_ take: Recorder.Take, as transcription: Transcriber.Transcription) {
+  public static func record(_ take: Recorder.Take, as transcription: Transcriber.Transcription) {
     guard enabled, !transcription.text.isEmpty else { return }
 
     let words = transcription.text.split(whereSeparator: { $0.isWhitespace }).count

@@ -19,7 +19,7 @@ import CoreAudio
 /// audio alone. That is a better idea on paper and it does not work: pointing
 /// the engine at another device after the input node exists leaves it running
 /// at the old rate, and it delivers about a tenth of the audio.
-enum Playback {
+public enum Playback {
   /// Play/pause. It is a toggle, which is the whole reason for the check below.
   private static let playPauseKey: Int32 = 16
 
@@ -33,14 +33,14 @@ enum Playback {
   // MARK: - Going quiet
 
   /// Pauses what is playing and mutes the output for the length of a take.
-  static func silence() {
+  public static func silence() {
     paused = pauseIfPlaying()
     mute()
   }
 
   /// Puts back exactly what was changed, in the reverse order. Unmuting first
   /// means the music never restarts into a muted machine.
-  static func restore() {
+  public static func restore() {
     unmute()
     if paused {
       paused = false

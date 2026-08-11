@@ -16,13 +16,13 @@ import CoreAudio
 /// keeps working across takes.
 ///
 /// It is a system wide setting, so it is put back the moment recording stops.
-enum InputDevice {
+public enum InputDevice {
   nonisolated(unsafe) private static var previous: AudioDeviceID?
 
   /// Makes the built in microphone the default input, and remembers what was
   /// there. Does nothing when the built in microphone is already the default,
   /// or when the machine has none.
-  static func useBuiltIn() {
+  public static func useBuiltIn() {
     guard previous == nil, let builtIn = builtInInput() else { return }
     let current = defaultInput()
     guard current != builtIn else { return }
@@ -30,7 +30,7 @@ enum InputDevice {
     setDefaultInput(builtIn)
   }
 
-  static func restore() {
+  public static func restore() {
     guard let previous else { return }
     setDefaultInput(previous)
     InputDevice.previous = nil

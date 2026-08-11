@@ -1,6 +1,6 @@
 import Foundation
 
-enum CadmusError: LocalizedError {
+public enum CadmusError: LocalizedError {
   case noInputDevice
   case hotkeyFailed(OSStatus)
   case hotkeyTaken(OSStatus)
@@ -8,7 +8,7 @@ enum CadmusError: LocalizedError {
   case modelFailedToLoad(String)
   case transcriptionFailed(Int32)
 
-  var errorDescription: String? {
+  public var errorDescription: String? {
     switch self {
     case .noInputDevice:
       return "No microphone available."

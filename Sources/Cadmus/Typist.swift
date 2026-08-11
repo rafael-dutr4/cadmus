@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import CadmusCore
 
 /// Puts text into whatever application has focus, and never presses Enter.
 ///
