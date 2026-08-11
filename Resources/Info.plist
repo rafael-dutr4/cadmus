@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>Kadmos</string>
+	<string>Cadmus</string>
 	<key>CFBundleIdentifier</key>
-	<string>br.dutra.kadmos</string>
+	<string>br.dutra.cadmus</string>
 	<key>CFBundleExecutable</key>
-	<string>Kadmos</string>
+	<string>Cadmus</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -15,7 +15,7 @@
 	<!-- macOS refuses the microphone to a process that does not say why it
 	     wants it, so this string is required and not decoration. -->
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Kadmos records what you dictate and turns it into text on this machine.</string>
+	<string>Cadmus records what you dictate and turns it into text on this machine.</string>
 	<!-- No dock icon, no window. -->
 	<key>LSUIElement</key>
 	<true/>

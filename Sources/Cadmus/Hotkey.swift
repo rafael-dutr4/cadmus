@@ -40,7 +40,7 @@ final class Hotkey {
       nil,
       &handler
     )
-    guard installed == noErr else { throw KadmosError.hotkeyFailed(installed) }
+    guard installed == noErr else { throw CadmusError.hotkeyFailed(installed) }
 
     let id = EventHotKeyID(signature: OSType(0x4B44_4D53), id: 1)  // 'KDMS'
     let registered = RegisterEventHotKey(
@@ -51,7 +51,7 @@ final class Hotkey {
       0,
       &ref
     )
-    guard registered == noErr else { throw KadmosError.hotkeyTaken(registered) }
+    guard registered == noErr else { throw CadmusError.hotkeyTaken(registered) }
   }
 
   deinit {

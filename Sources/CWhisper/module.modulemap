@@ -2,8 +2,14 @@
 // the path is absolute. The library is not vendored: it is a C++ project with
 // its own build system and its own accelerated backends, and tracking it by
 // hand would be work that buys nothing.
+//
+// ggml-backend.h is here for one function, `ggml_backend_load_all`. See
+// Transcriber.swift for why it has to be called by hand.
 module CWhisper [system] {
-    header "/opt/homebrew/include/whisper.h"
-    link "whisper"
-    export *
+  header "/opt/homebrew/include/whisper.h"
+  header "/opt/homebrew/include/ggml-backend.h"
+  link "whisper"
+  // The loader, not the arithmetic. `ggml_backend_load_all` lives here.
+  link "ggml"
+  export *
 }

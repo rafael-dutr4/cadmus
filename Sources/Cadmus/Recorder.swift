@@ -39,7 +39,7 @@ final class Recorder: @unchecked Sendable {
     // The hardware picks this, not me. It is usually 48 kHz stereo.
     let inputFormat = input.inputFormat(forBus: 0)
     guard inputFormat.sampleRate > 0 else {
-      throw KadmosError.noInputDevice
+      throw CadmusError.noInputDevice
     }
     converter = AVAudioConverter(from: inputFormat, to: targetFormat)
 

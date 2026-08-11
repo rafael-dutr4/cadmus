@@ -18,7 +18,7 @@ private let shortestTake: Double = 0.4
 /// menu bar, the hotkey handler and the event posting all belong to it. The one
 /// piece that must not is the model, and it is the one piece sent away.
 @MainActor
-final class Kadmos: NSObject, NSApplicationDelegate {
+final class Cadmus: NSObject, NSApplicationDelegate {
   private let recorder = Recorder()
   private var transcriber: Transcriber?
   private var hotkey: Hotkey?
@@ -26,15 +26,15 @@ final class Kadmos: NSObject, NSApplicationDelegate {
 
   private let method: Typist.Method = {
     // The open question of the project, so it is switchable without a
-    // rebuild: KADMOS_INSERT=paste.
-    Typist.Method(rawValue: ProcessInfo.processInfo.environment["KADMOS_INSERT"] ?? "")
+    // rebuild: CADMUS_INSERT=paste.
+    Typist.Method(rawValue: ProcessInfo.processInfo.environment["CADMUS_INSERT"] ?? "")
       ?? .keystrokes
   }()
 
   private var modelPath: String {
-    if let override = ProcessInfo.processInfo.environment["KADMOS_MODEL"] { return override }
+    if let override = ProcessInfo.processInfo.environment["CADMUS_MODEL"] { return override }
     return FileManager.default.homeDirectoryForCurrentUser
-      .appending(path: "personal/kadmos/models/ggml-small.en.bin").path
+      .appending(path: "personal/cadmus/models/ggml-small.en.bin").path
   }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
@@ -42,7 +42,7 @@ final class Kadmos: NSObject, NSApplicationDelegate {
     statusItem.button?.title = "○"
     let menu = NSMenu()
     menu.addItem(
-      NSMenuItem(title: "Kadmos (ctrl option D)", action: nil, keyEquivalent: ""))
+      NSMenuItem(title: "Cadmus (ctrl option D)", action: nil, keyEquivalent: ""))
     menu.addItem(.separator())
     menu.addItem(
       NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
@@ -114,16 +114,16 @@ final class Kadmos: NSObject, NSApplicationDelegate {
 
   private func fail(_ error: Error) {
     setIdle()
-    FileHandle.standardError.write(Data("kadmos: \(error.localizedDescription)\n".utf8))
+    FileHandle.standardError.write(Data("cadmus: \(error.localizedDescription)\n".utf8))
     let alert = NSAlert()
-    alert.messageText = "Kadmos"
+    alert.messageText = "Cadmus"
     alert.informativeText = error.localizedDescription
     alert.runModal()
   }
 }
 
 let app = NSApplication.shared
-let delegate = Kadmos()
+let delegate = Cadmus()
 app.delegate = delegate
 // No dock icon and no window. The menu bar is the whole interface.
 app.setActivationPolicy(.accessory)

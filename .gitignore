@@ -1,7 +1,7 @@
 .DS_Store
 /.build
 /Packages
-/Kadmos.app
+/Cadmus.app
 xcuserdata/
 DerivedData/
 .swiftpm/

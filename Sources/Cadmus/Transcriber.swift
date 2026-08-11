@@ -13,18 +13,29 @@ import Foundation
 final class Transcriber: @unchecked Sendable {
   private let context: OpaquePointer
   private let threads: Int32
-  private let queue = DispatchQueue(label: "br.dutra.kadmos.transcriber")
+  private let queue = DispatchQueue(label: "br.dutra.cadmus.transcriber")
+
+  /// The Homebrew build of ggml is split: the library that whisper links is a
+  /// loader, and the backends that do the arithmetic (Metal, BLAS, and one CPU
+  /// build per chip generation) are separate files it opens at runtime. Loading
+  /// them is the caller's job and whisper does not do it, so a program that
+  /// skips this gets a context with zero devices and dies on an assert inside
+  /// the library. `whisper-cli` calls this in its own `main` for the same
+  /// reason. The search path is compiled into the loader, so it takes no
+  /// argument here.
+  private static let backends: Void = ggml_backend_load_all()
 
   init(modelPath: String) throws {
     guard FileManager.default.fileExists(atPath: modelPath) else {
-      throw KadmosError.modelMissing(modelPath)
+      throw CadmusError.modelMissing(modelPath)
     }
+    _ = Transcriber.backends
 
     var params = whisper_context_default_params()
     params.use_gpu = true  // Metal. Without it this is several times slower.
 
     guard let context = whisper_init_from_file_with_params(modelPath, params) else {
-      throw KadmosError.modelFailedToLoad(modelPath)
+      throw CadmusError.modelFailedToLoad(modelPath)
     }
     self.context = context
 
@@ -62,7 +73,7 @@ final class Transcriber: @unchecked Sendable {
         whisper_full(context, params, buffer.baseAddress, Int32(buffer.count))
       }
     }
-    guard status == 0 else { throw KadmosError.transcriptionFailed(status) }
+    guard status == 0 else { throw CadmusError.transcriptionFailed(status) }
 
     var text = ""
     for index in 0..<whisper_full_n_segments(context) {

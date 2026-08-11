@@ -1,14 +1,14 @@
-# Kadmos
+# Cadmus
 
 Dictation for macOS. Press a hotkey, speak, and the words appear where the
 cursor already is. The transcription runs on the machine, with
 [whisper.cpp](https://github.com/ggml-org/whisper.cpp). Nothing is sent anywhere
 and no audio is written to disk.
 
-The name is Kadmos, who brought the alphabet to Greece.
+The name is Cadmus, who brought the alphabet to Greece.
 
 ## The rule
-Kadmos never presses Enter. It writes the text and stops there. I read it, I fix
+Cadmus never presses Enter. It writes the text and stops there. I read it, I fix
 what came out wrong, and I send it.
 
 That is what makes it a keyboard instead of an agent, and it is why it works the
@@ -33,5 +33,5 @@ Ctrl+Option+D starts recording, the same keys stop it. The menu bar shows the
 state: `○` idle, `●` recording, `…` transcribing.
 
 ## Environment
-- `KADMOS_INSERT`: `keystrokes` (default) or `paste`.
-- `KADMOS_MODEL`: path to a different ggml model.
+- `CADMUS_INSERT`: `keystrokes` (default) or `paste`.
+- `CADMUS_MODEL`: path to a different ggml model.

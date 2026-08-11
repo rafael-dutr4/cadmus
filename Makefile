@@ -1,6 +1,6 @@
 MODEL := models/ggml-small.en.bin
 MODEL_URL := https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
-APP := Kadmos.app
+APP := Cadmus.app
 
 .PHONY: build app run model fmt clean
 
@@ -18,12 +18,12 @@ app: build
 	rm -rf $(APP)
 	mkdir -p $(APP)/Contents/MacOS
 	cp Resources/Info.plist $(APP)/Contents/Info.plist
-	cp .build/release/Kadmos $(APP)/Contents/MacOS/Kadmos
+	cp .build/release/Cadmus $(APP)/Contents/MacOS/Cadmus
 	# Ad hoc signature. Unsigned, the permissions are re-asked on every build.
-	codesign --force --sign - --identifier br.dutra.kadmos $(APP)
+	codesign --force --sign - --identifier br.dutra.cadmus $(APP)
 
 run: app
-	./$(APP)/Contents/MacOS/Kadmos
+	./$(APP)/Contents/MacOS/Cadmus
 
 model: $(MODEL)
 

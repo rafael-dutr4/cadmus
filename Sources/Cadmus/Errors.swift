@@ -1,6 +1,6 @@
 import Foundation
 
-enum KadmosError: LocalizedError {
+enum CadmusError: LocalizedError {
   case noInputDevice
   case hotkeyFailed(OSStatus)
   case hotkeyTaken(OSStatus)
