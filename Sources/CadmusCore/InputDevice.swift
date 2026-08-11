@@ -19,18 +19,32 @@ import CoreAudio
 public enum InputDevice {
   nonisolated(unsafe) private static var previous: AudioDeviceID?
 
+  /// The device Cadmus asked for, so an engine can be checked against what it
+  /// actually got rather than assumed to have got it.
+  nonisolated(unsafe) public private(set) static var chosen: AudioDeviceID?
+
   /// Makes the built in microphone the default input, and remembers what was
   /// there. Does nothing when the built in microphone is already the default,
   /// or when the machine has none.
   public static func useBuiltIn() {
-    guard previous == nil, let builtIn = builtInInput() else { return }
+    guard let builtIn = builtInInput() else { return }
+    chosen = builtIn
+    guard previous == nil else { return }
     let current = defaultInput()
     guard current != builtIn else { return }
     previous = current
     setDefaultInput(builtIn)
   }
 
+  /// Whether the system has actually caught up with what was asked for.
+  /// Setting the default input returns long before it takes effect.
+  public static func settled() -> Bool {
+    guard let chosen else { return true }
+    return defaultInput() == chosen
+  }
+
   public static func restore() {
+    chosen = nil
     guard let previous else { return }
     setDefaultInput(previous)
     InputDevice.previous = nil

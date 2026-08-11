@@ -19,7 +19,7 @@ public final class Recorder: @unchecked Sendable {
   /// The numbers are free: they are the same ones that decided where the phrase
   /// ended. Nothing here is computed for the journal, it is only kept instead
   /// of thrown away.
-  public struct Take {
+  public struct Take: Sendable {
     public let samples: [Float]
     /// Seconds that were actually speech, not the length of the recording.
     public let speech: Double
@@ -135,35 +135,81 @@ public final class Recorder: @unchecked Sendable {
     guard !isRecording else { return }
     reset()
 
-    // Before the engine exists, because the engine reads the device once and
-    // keeps it. Changing it afterwards leaves the node running at the old rate.
+    // Before the engine exists. The engine follows the default input, so the
+    // default has to already be the one I want.
     InputDevice.useBuiltIn()
 
-    let (engine, inputFormat): (AVAudioEngine, AVAudioFormat)
-    do {
-      (engine, inputFormat) = try openInput()
-    } catch {
-      InputDevice.restore()
-      throw error
+    // Setting the default input returns long before the system acts on it.
+    for _ in 0..<30 where !InputDevice.settled() {
+      Thread.sleep(forTimeInterval: 0.05)
     }
-    self.engine = engine
 
+    // Then the engine is started and asked to prove it, because none of the
+    // things that can be checked in advance actually predict this.
+    //
+    // The engine does not sit on a microphone. It sits on an aggregate device
+    // that stands for "whatever the default is", which macOS rebuilds when the
+    // default changes, so its identity can never be compared against a real
+    // microphone and its sample rate looks healthy while it delivers nothing.
+    // Every check I wrote against that was a check against the wrong thing.
+    //
+    // So the test is the only one that cannot be fooled: audio, or no audio.
+    var failure: Error?
+    for attempt in 0..<4 {
+      do {
+        try open()
+        if waitForAudio() {
+          if attempt > 0 { Log.say("the microphone needed \(attempt + 1) tries") }
+          isRecording = true
+          return
+        }
+        Log.say("the microphone opened and delivered nothing, starting it again")
+        close()
+      } catch {
+        failure = error
+        close()
+      }
+      Thread.sleep(forTimeInterval: 0.2)
+    }
+
+    InputDevice.restore()
+    throw failure ?? CadmusError.noInputDevice
+  }
+
+  private func open() throws {
+    let engine = AVAudioEngine()
     let input = engine.inputNode
+    engine.prepare()
+
+    let inputFormat = input.inputFormat(forBus: 0)
+    guard inputFormat.sampleRate > 0 else { throw CadmusError.noInputDevice }
     converter = AVAudioConverter(from: inputFormat, to: targetFormat)
 
     input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
       self?.append(buffer)
     }
 
-    engine.prepare()
-    do {
-      try engine.start()
-    } catch {
-      self.engine = nil
-      InputDevice.restore()
-      throw error
+    try engine.start()
+    self.engine = engine
+  }
+
+  /// Whether anything at all came through. A microphone that is not really
+  /// there does not fail, it stays quiet, which is why this waits for a buffer
+  /// rather than for an error.
+  private func waitForAudio() -> Bool {
+    for _ in 0..<16 {
+      if ready { return true }
+      Thread.sleep(forTimeInterval: 0.05)
     }
-    isRecording = true
+    return false
+  }
+
+  private func close() {
+    engine?.inputNode.removeTap(onBus: 0)
+    engine?.stop()
+    engine = nil
+    converter = nil
+    reset()
   }
 
   /// Stops the engine and flushes whatever phrase was still open. The engine is
@@ -177,26 +223,6 @@ public final class Recorder: @unchecked Sendable {
     isRecording = false
     InputDevice.restore()
     emitIfWorthIt()
-  }
-
-  /// An engine pointed at a device that is actually ready.
-  ///
-  /// Changing the default input takes effect when it takes effect, not when the
-  /// call returns, and an engine built a moment too early reports a sample rate
-  /// of zero and records nothing. The engine reads the device once, at the
-  /// moment its input node is created, so waiting means building a new one
-  /// rather than asking the same one again.
-  ///
-  /// It almost always succeeds on the first try. The waiting is for the take
-  /// that comes right after the previous one put the device back.
-  private func openInput() throws -> (AVAudioEngine, AVAudioFormat) {
-    for _ in 0..<20 {
-      let engine = AVAudioEngine()
-      let format = engine.inputNode.inputFormat(forBus: 0)
-      if format.sampleRate > 0 { return (engine, format) }
-      Thread.sleep(forTimeInterval: 0.05)
-    }
-    throw CadmusError.noInputDevice
   }
 
   /// Follows the quiet down quickly and the loud up slowly.
