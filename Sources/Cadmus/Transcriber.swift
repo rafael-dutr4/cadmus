@@ -67,10 +67,16 @@ final class Transcriber: @unchecked Sendable {
     params.no_context = true
     params.suppress_blank = true
 
+    // Both strings have to outlive the call, which is why this nests instead of
+    // assigning. A Swift string handed to C does not keep its buffer alive past
+    // the expression that produced it.
     let status = "en".withCString { language -> Int32 in
       params.language = language
-      return samples.withUnsafeBufferPointer { buffer in
-        whisper_full(context, params, buffer.baseAddress, Int32(buffer.count))
+      return (Vocabulary.prompt ?? "").withCString { prompt -> Int32 in
+        if Vocabulary.prompt != nil { params.initial_prompt = prompt }
+        return samples.withUnsafeBufferPointer { buffer in
+          whisper_full(context, params, buffer.baseAddress, Int32(buffer.count))
+        }
       }
     }
     guard status == 0 else { throw CadmusError.transcriptionFailed(status) }
@@ -80,6 +86,11 @@ final class Transcriber: @unchecked Sendable {
       guard let segment = whisper_full_get_segment_text(context, index) else { continue }
       text += String(cString: segment)
     }
-    return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    // Handed audio with no speech in it, the model does not return nothing. It
+    // returns its own name for nothing, and that is not text I want typed.
+    guard Vocabulary.isSpeech(text) else { return "" }
+    return Vocabulary.correct(text)
   }
 }

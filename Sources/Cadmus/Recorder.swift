@@ -56,18 +56,53 @@ final class Recorder: @unchecked Sendable {
   // into somebody else's window, where nothing can be retracted, so a phrase is
   // only typed once it is finished.
 
-  /// Anything under this is not speech. Tunable because it depends on the
-  /// microphone and on how loudly I talk: too high cuts me off mid sentence,
-  /// too low never cuts at all.
-  private let voiceFloor: Float =
-    ProcessInfo.processInfo.environment["CADMUS_VOICE_FLOOR"].flatMap(Float.init) ?? 0.012
+  /// What counts as speech is measured, not decided in advance.
+  ///
+  /// A fixed number was wrong the moment anything changed. Set for a headset
+  /// against my mouth it was twice my voice on the built in microphone, so
+  /// nothing crossed it, no pause was ever found, and the only text that came
+  /// out was whatever stopping flushed. It would have been wrong again in a
+  /// louder room, or on a different machine.
+  ///
+  /// So Cadmus tracks how quiet the room is and calls speech anything a few
+  /// times louder than that. A number can still be forced with
+  /// CADMUS_VOICE_FLOOR, which is now for arguing with it rather than for
+  /// making it work.
+  private let forcedFloor: Float? =
+    ProcessInfo.processInfo.environment["CADMUS_VOICE_FLOOR"].flatMap(Float.init)
 
-  /// How long the quiet has to last to count as the end of a phrase. Longer
-  /// than the pause inside a sentence, shorter than the one between two.
-  private let pause: Double = 0.7
+  /// The running estimate of the room with nobody talking in it.
+  private var background: Float = 0
+
+  /// How far above the room something has to be to be a voice. Speech is
+  /// several times louder than the noise it sits in, so this does not have to
+  /// be precise, only on the right side of the gap.
+  private let overRoom: Float = 3.5
+
+  /// Below this nothing is speech, whatever the room says. It stops a silent
+  /// room from making the threshold so small that its own hiss becomes a voice.
+  private let quietestPossibleVoice: Float = 0.002
+
+  private var voiceFloor: Float {
+    if let forcedFloor { return forcedFloor }
+    return max(quietestPossibleVoice, background * overRoom)
+  }
+
+  /// How long the quiet has to last to count as the end of a phrase.
+  ///
+  /// This was 0.7s, which is a pause between sentences for someone reading
+  /// aloud and a pause in the middle of one for someone thinking. Dictating a
+  /// prompt is the second thing, so it cut me into fragments like "True" and
+  /// "speak." and handed each one to the model with no sentence around it.
+  ///
+  /// The cost of raising it is that text appears later. That is the right way
+  /// to spend it: a whole sentence transcribed a second later beats half a
+  /// sentence transcribed now, because the half sentence is also wrong.
+  private let pause: Double =
+    ProcessInfo.processInfo.environment["CADMUS_PAUSE"].flatMap(Double.init) ?? 1.4
 
   /// Below this there is no phrase, only a noise that crossed the floor.
-  private let shortestPhrase: Double = 0.3
+  private let shortestPhrase: Double = 0.5
 
   /// If I never pause, the phrase is cut anyway. Whisper's window is 30
   /// seconds and anything past it is dropped without a word about it.
@@ -141,8 +176,25 @@ final class Recorder: @unchecked Sendable {
     throw CadmusError.noInputDevice
   }
 
+  /// Follows the quiet down quickly and the loud up slowly.
+  ///
+  /// The asymmetry is the whole trick. Falling fast means the estimate settles
+  /// on the room within a moment of starting, and rising slowly means a long
+  /// sentence never drags the threshold up behind it until my own voice counts
+  /// as background and the phrase never ends.
+  private func learnTheRoom(_ level: Float) {
+    if background == 0 {
+      background = level
+    } else if level < background {
+      background += (level - background) * 0.3
+    } else {
+      background += (level - background) * 0.002
+    }
+  }
+
   private func reset() {
     ready = false
+    background = 0
     lock.withLock {
       current.removeAll(keepingCapacity: true)
       voiced = 0
@@ -187,7 +239,9 @@ final class Recorder: @unchecked Sendable {
   }
 
   private func accumulate(_ chunk: [Float]) {
-    let loud = chunk.rms >= voiceFloor
+    let level = chunk.rms
+    learnTheRoom(level)
+    let loud = level >= voiceFloor
     let length = chunk.seconds
 
     let ended: Bool = lock.withLock {
@@ -215,6 +269,12 @@ final class Recorder: @unchecked Sendable {
   }
 
   private func emitIfWorthIt() {
+    let heard = lock.withLock { (voiced, current.seconds, current.rms) }
+    Log.say(
+      String(
+        format: "phrase ended: %.1fs of speech in %.1fs of audio, loudness %.4f (floor %.4f)",
+        heard.0, heard.1, heard.2, voiceFloor))
+
     let phrase: [Float]? = lock.withLock {
       defer {
         current.removeAll(keepingCapacity: true)

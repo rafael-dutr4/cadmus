@@ -59,8 +59,23 @@ final class Cadmus: NSObject, NSApplicationDelegate {
 
     // Asked for now rather than at the moment I first speak, because the
     // dialog steals focus and the focused window is where the text goes.
-    _ = Typist.hasAccessibilityPermission(prompting: true)
-    AVCaptureDevice.requestAccess(for: .audio) { _ in }
+    //
+    // Both are reported because both fail silently. Typing without the
+    // accessibility right posts events that go nowhere and returns no error,
+    // which is indistinguishable from a transcription that came back empty.
+    let trusted = Typist.hasAccessibilityPermission(prompting: true)
+    Log.say("accessibility (the right to type): \(trusted ? "granted" : "DENIED")")
+    if !trusted {
+      Log.say("  nothing will be typed until this binary is ticked in")
+      Log.say("  System Settings > Privacy & Security > Accessibility")
+      Log.say("  the grant follows the binary, so a rebuild can lose it")
+    }
+
+    let mic = AVCaptureDevice.authorizationStatus(for: .audio)
+    Log.say("microphone: \(mic == .authorized ? "granted" : "\(mic.rawValue), not authorized")")
+    AVCaptureDevice.requestAccess(for: .audio) { granted in
+      Log.say("microphone after asking: \(granted ? "granted" : "DENIED")")
+    }
 
     // The audio thread hands over a finished phrase. Nothing slow can happen
     // there, so it goes straight to the worker.
@@ -74,6 +89,7 @@ final class Cadmus: NSObject, NSApplicationDelegate {
     // more, because by then the machine is muted.
     recorder.onReady = { [weak self] in
       Task { @MainActor in
+        Log.say("the microphone is live, talk now")
         self?.micLive = true
         self?.redraw()
       }
@@ -91,6 +107,12 @@ final class Cadmus: NSObject, NSApplicationDelegate {
         exit(1)
       }
     }
+
+    // Touched here so the files exist before the first phrase rather than
+    // appearing halfway through one.
+    Log.say(
+      "vocabulary: \(Vocabulary.prompt == nil ? "none" : "loaded"), "
+        + "\(Vocabulary.replacements.count) replacements, from ~/.config/cadmus")
 
     do {
       transcriber = try Transcriber(modelPath: modelPath)
@@ -121,8 +143,10 @@ final class Cadmus: NSObject, NSApplicationDelegate {
     if quiet { Playback.silence() }
     do {
       try recorder.start()
+      Log.say("recording")
       redraw()
     } catch {
+      Log.say("could not start recording: \(error.localizedDescription)")
       Playback.restore()
       fail(error)
     }
@@ -132,6 +156,7 @@ final class Cadmus: NSObject, NSApplicationDelegate {
   /// Everything said before it is already on its way, or already typed.
   private func finish() {
     recorder.stop()
+    Log.say("stopped")
     micLive = false
     Playback.restore()
     redraw()
@@ -143,12 +168,22 @@ final class Cadmus: NSObject, NSApplicationDelegate {
     redraw()
 
     let method = self.method
+    Log.say(
+      String(format: "phrase of %.1fs handed to the model", samples.seconds))
     worker.async {
-      let text = (try? transcriber.transcribe(samples)) ?? ""
+      let text: String
+      do {
+        text = try transcriber.transcribe(samples)
+      } catch {
+        Log.say("the model failed: \(error.localizedDescription)")
+        text = ""
+      }
       DispatchQueue.main.async {
         self.pending -= 1
         self.redraw()
+        Log.say("the model said: \(text.isEmpty ? "(nothing)" : "\"\(text)\"")")
         guard !text.isEmpty else { return }
+        Log.say("typing it with \(method.rawValue)")
         // A space after, so the next phrase does not weld itself to this one.
         // Still no Enter, ever: I read it and I send it.
         Typist.insert(text + " ", using: method)
